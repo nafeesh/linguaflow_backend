@@ -11,7 +11,7 @@ services:
     environment:
       - REDIS_HOST=${REDIS_HOST}
       # Let backend talk to the MLflow server, not directly to Postgres:
-      - MLFLOW_TRACKING_URI=http://mlflow:5000
+      - MLFLOW_TRACKING_URI=${MLFLOW_TRACKING_URI}
 
   redis:
     image: redis:alpine
