@@ -38,5 +38,21 @@ services:
       - mlflow
       - server
 
+  # ADD THIS NEW SERVICE:
+  npm:
+    image: 'jc21/nginx-proxy-manager:latest'
+    container_name: linguaflow_npm
+    restart: unless-stopped
+    ports:
+      - '80:80' # HTTP traffic
+      - '81:81' # Admin UI
+      - '443:443' # HTTPS traffic
+    volumes:
+      - ./data:/data
+      - ./letsencrypt:/etc/letsencrypt
+    depends_on:
+      - backend
+      - mlflow
+
 volumes:
   postgres_data:
