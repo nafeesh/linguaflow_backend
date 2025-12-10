@@ -1,0 +1,42 @@
+services:
+  backend:
+    build: .
+    container_name: linguaflow-backend
+    ports:
+      - "8000:8000"
+    depends_on:
+      - redis
+    env_file:
+      - .env
+    environment:
+      - REDIS_HOST=${REDIS_HOST}
+      # Let backend talk to the MLflow server, not directly to Postgres:
+      - MLFLOW_TRACKING_URI=http://mlflow:5000
+
+  redis:
+    image: redis:alpine
+    container_name: linguaflow-redis
+    ports:
+      - "6379:6379"
+
+  mlflow:
+    build:
+      context: .
+      dockerfile: Dockerfile.mlflow
+    container_name: linguaflow-mlflow
+    env_file:
+      - .env
+    ports:
+      - "5000:5000"
+    environment:
+      - MLFLOW_BACKEND_STORE_URI=${MLFLOW_BACKEND_STORE_URI}
+      - MLFLOW_HOST=${MLFLOW_HOST}
+      - MLFLOW_PORT=${MLFLOW_PORT}
+      - MLFLOW_SERVER_ALLOWED_HOSTS=${MLFLOW_SERVER_ALLOWED_HOSTS}
+      - MLFLOW_SERVER_CORS_ALLOWED_ORIGINS=${MLFLOW_SERVER_CORS_ALLOWED_ORIGINS}
+    command:
+      - mlflow
+      - server
+
+volumes:
+  postgres_data:

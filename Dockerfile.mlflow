@@ -1,0 +1,5 @@
+# Dockerfile.mlflow
+FROM ghcr.io/mlflow/mlflow:latest
+
+# Install Postgres driver for the backend store
+RUN pip install --no-cache-dir psycopg2-binary
