@@ -3,20 +3,40 @@ import time
 import hashlib
 import redis
 import mlflow
-from fastapi import FastAPI, HTTPException
+from fastapi import FastAPI, HTTPException, BackgroundTasks
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
 from dotenv import load_dotenv
 from langchain_groq import ChatGroq
 from langchain_core.prompts import ChatPromptTemplate
-from fastapi import BackgroundTasks
+import requests
 
 load_dotenv()
 
-# --- MLFLOW CONFIGURATION ---
-mlflow.set_experiment("LinguaFlow-Live-Translations")
+# --- MLFLOW SETUP (MANUAL LOGGING ONLY) ---
+MLFLOW_URI = os.getenv("MLFLOW_TRACKING_URI", "file:./mlruns")
+mlflow.set_tracking_uri(MLFLOW_URI)
 
-# ---------------------------
+experiment_name = "LinguaFlow-Live-Translations"
+max_retries = 15
+retry_delay = 2
+
+print(f"Attempting to connect to MLflow at {MLFLOW_URI}...")
+
+# We still need this loop to ensure the Experiment exists before we start.
+# Otherwise, the first request might fail or log to 'Default'.
+for attempt in range(max_retries):
+    try:
+        mlflow.set_experiment(experiment_name)
+        print(f"✅ Successfully connected to Experiment: {experiment_name}")
+        break 
+    except Exception as e:
+        print(f"⏳ MLflow not ready yet (Attempt {attempt+1}/{max_retries}). Retrying in {retry_delay}s...")
+        time.sleep(retry_delay)
+else:
+    print("❌ Could not connect to MLflow. Logging might fail.")
+
+# ------------------------------------------
 
 app = FastAPI()
 
@@ -31,8 +51,8 @@ app.add_middleware(
 # Redis Setup
 try:
     redis_client = redis.Redis(host=os.getenv("REDIS_HOST"), port=os.getenv("REDIS_PORT"), db=os.getenv("REDIS_DB"), decode_responses=True)
-    redis_client.ping() # Check connection
-except redis.ConnectionError:
+    redis_client.ping()
+except (redis.ConnectionError, TypeError):
     print("Warning: Redis not connected. Caching disabled.")
     redis_client = None
 
@@ -51,15 +71,19 @@ chain = prompt | llm
 
 class TranslationRequest(BaseModel):
     text: str
-    target_lang: str = os.getenv("TARGET_LANG")
+    target_lang: str = os.getenv("TARGET_LANG", "French")
 
-
+# --- YOUR MANUAL LOGGING FUNCTION ---
 def log_to_mlflow(text, translation, latency):
-    # This runs AFTER the response is sent to the user
-    with mlflow.start_run():
-        mlflow.log_param("text", text)
-        mlflow.log_metric("latency", latency)
-        mlflow.log_param("translation", translation)
+    try:
+        # We explicitly mention the experiment_id to be safe, 
+        # though set_experiment above usually handles it.
+        with mlflow.start_run(run_name="manual_log"): 
+            mlflow.log_param("text", text)
+            mlflow.log_metric("latency_ms", latency)
+            mlflow.log_param("translation", translation)
+    except Exception as e:
+        print(f"⚠️ Failed to log to MLflow: {e}")
 
 @app.post("/translate")
 async def translate_text(request: TranslationRequest, background_tasks: BackgroundTasks):
@@ -69,11 +93,12 @@ async def translate_text(request: TranslationRequest, background_tasks: Backgrou
     text_hash = hashlib.md5(clean_text.encode()).hexdigest()
     cache_key = f"trans:{request.target_lang}:{text_hash}"
 
-    # Check Cache
+    # 1. Check Cache
     if redis_client:
         cached_translation = redis_client.get(cache_key)
         if cached_translation:
             latency = round((time.time() - start_time) * 1000, 2)
+            # Log cache hit too!
             background_tasks.add_task(log_to_mlflow, request.text, cached_translation, latency)
             return {
                 "original": request.text,
@@ -82,9 +107,8 @@ async def translate_text(request: TranslationRequest, background_tasks: Backgrou
                 "source": "cache"
             }
 
-    # API Call
+    # 2. API Call
     try:
-        # MLflow autolog captures this .ainvoke() automatically!
         response = await chain.ainvoke({
             "language": request.target_lang,
             "text": request.text
@@ -96,7 +120,7 @@ async def translate_text(request: TranslationRequest, background_tasks: Backgrou
         
         latency = round((time.time() - start_time) * 1000, 2)
 
-        # Send response immediately, log later
+        # 3. Log to MLflow in background
         background_tasks.add_task(log_to_mlflow, request.text, translated_text, latency)
 
         return {
