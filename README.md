@@ -1,11 +1,3 @@
-## Setup
-
-Here is a comprehensive, professional **README.md** file for your project. You can copy-paste this directly into your GitHub repository.
-
-I have structured it to cover the entire stack: **Chrome Extension (FE)**, **FastAPI (BE)**, **Docker Infrastructure**, and **MLflow Observability**.
-
------
-
 # 🌐 LinguaFlow: AI-Powered Real-Time Translation
 
 > **Select text anywhere on the web and get instant, context-aware translations powered by Llama-3.**
@@ -20,8 +12,6 @@ I have structured it to cover the entire stack: **Chrome Extension (FE)**, **Fas
   * **📊 Observability:** Full MLflow integration to track latency, prompts, and translation quality.
   * **🐳 Containerized:** Fully Dockerized architecture (API, DB, Cache, Dashboard) for easy deployment.
   * **🔒 Secure:** Production-ready Nginx reverse proxy with automatic SSL (via Let's Encrypt).
-
------
 
 ## 🛠️ Tech Stack
 
@@ -48,25 +38,6 @@ I have structured it to cover the entire stack: **Chrome Extension (FE)**, **Fas
 
 -----
 
-## 🏗️ Architecture
-
-```mermaid
-graph TD
-    User[User Selects Text] -->|Chrome Ext| FE[Frontend (React)]
-    FE -->|HTTPS| Nginx[Nginx Proxy Manager]
-    Nginx -->|Reverse Proxy| API[FastAPI Backend]
-    
-    API -->|Check Cache| Redis[(Redis)]
-    Redis -- Hit --> API
-    
-    API -- Miss --> LLM[Groq API / Llama-3]
-    LLM --> API
-    
-    API -->|Log Trace| MLflow[MLflow Server]
-    MLflow -->|Store Data| DB[(PostgreSQL)]
-```
-
------
 
 ## ⚙️ Environment Variables
 
@@ -90,16 +61,7 @@ POSTGRES_DB=mlflow_db
 MLFLOW_TRACKING_URI=http://mlflow:5000
 ```
 
------
-
 ## 🚀 Getting Started
-
-### 1\. Clone the Repository
-
-```bash
-git clone https://github.com/yourusername/linguaflow.git
-cd linguaflow
-```
 
 ### 2\. Start the Backend (Docker)
 
